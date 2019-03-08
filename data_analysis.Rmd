@@ -1,0 +1,378 @@
+---
+title: "Neural Valuation of Anti-Drinking Campaigns and Risky Peer Influence in Daily Life"
+author: "Scholz, C., Dore, B. P., Cooper, C., Falk, E. B."
+date: "3/5/2019"
+output: html_document
+---
+
+```{r,echo=FALSE}
+# import libraries
+library(lmerTest)
+library(moments)
+```
+
+
+```{r,echo=FALSE}
+# Get data
+data_long=read.csv('github_data.csv',stringsAsFactors = F)
+# create participant_level dataset
+data_ppts<-data.frame()
+for(i in unique(data_long$pID)){
+  data_ppts=rbind(data_ppts,data_long[which(data_long$pID==i)[1],])
+}
+
+```
+
+# Method
+
+## Participants
+
+- N for behavioral data = `r length(unique(data_ppts$pID))`
+- `r sum(data_ppts$gender==2)/dim(data_ppts)[1]`% females
+- N for neuroimaging data = `r length(unique(data_ppts$pID[!is.na(data_ppts$bartra_VMPFC_cons_c)]))`
+
+## Variables
+
+```{r, echo=FALSE}
+# Prep for test-restest reliability
+avg_drinks1_trt<-c()
+avg_drinks2_trt<-c()
+avg_valence1_trt<-c()
+avg_valence2_trt<-c()
+
+for(i in unique(data_long$pID)){
+  cur_df_drinks<-data_long[which(data_long$pID==i & !is.na(data_long$nr_drinks_fp) & data_long$nr_drinks_fp>0),]
+  cur_df_val<-data_long[which(data_long$pID==i & !is.na(data_long$valence_fp)),]
+  
+  avg_drinks1_trt[length(avg_drinks1_trt)+1]<-mean(cur_df_drinks$nr_drinks_fp[0:(dim(cur_df_drinks)[1]/2)])
+  avg_drinks2_trt[length(avg_drinks2_trt)+1]<-mean(cur_df_drinks$nr_drinks_fp[((dim(cur_df_drinks)[1]/2)+1):dim(cur_df_drinks)[1]])
+  avg_valence1_trt[length(avg_valence1_trt)+1]<-mean(cur_df_val$valence_fp[0:(dim(cur_df_val)[1]/2)])
+  avg_valence2_trt[length(avg_valence2_trt)+1]<-mean(cur_df_val$valence_fp[((dim(cur_df_val)[1]/2)+1):dim(cur_df_val)[1]])
+}
+
+# Prep for split-half reliability
+avg_drinks1_sh<-c()
+avg_drinks2_sh<-c()
+avg_valence1_sh<-c()
+avg_valence2_sh<-c()
+
+for(i in unique(data_long$pID)){
+
+  cur_drinking_df<-data_long[which(data_long$pID==i & !is.na(data_long$nr_drinks_fp) & data_long$nr_drinks_fp>0),]
+  first_half_drinks<-c()
+  second_half_drinks<-c()
+  for(r in seq(1,dim(cur_drinking_df)[1],2)){
+    first_half_drinks[length(first_half_drinks)+1]<-cur_drinking_df$nr_drinks_fp[r]
+    second_half_drinks[length(second_half_drinks)+1]<-cur_drinking_df$nr_drinks_fp[r+1]
+  }
+  cur_val_df<-data_long[which(data_long$pID==i & !is.na(data_long$valence_fp)),]
+  first_half_val<-c()
+  second_half_val<-c()
+  for(r in seq(1,dim(cur_val_df)[1],2)){
+    first_half_val[length(first_half_val)+1]<-cur_val_df$valence_fp[r]
+    second_half_val[length(second_half_val)+1]<-cur_val_df$valence_fp[r+1]
+  }
+  
+  avg_drinks1_sh[length(avg_drinks1_sh)+1]<-mean(first_half_drinks)
+  avg_drinks2_sh[length(avg_drinks2_sh)+1]<-mean(second_half_drinks)
+  avg_valence1_sh[length(avg_valence1_sh)+1]<-mean(first_half_val)
+  avg_valence2_sh[length(avg_valence2_sh)+1]<-mean(second_half_val)
+}
+
+```
+
+
+**Conversational valence**
+
+- Split-half reliability:
+```{r}
+cor.test(avg_valence1_sh,avg_valence2_sh)
+```
+- Test-retest reliability
+```{r}
+cor.test(avg_valence1_trt,avg_valence2_trt)
+```
+
+**Drinking behavior**
+
+- Split-half reliability:
+```{r}
+cor.test(avg_drinks1_sh,avg_drinks2_sh)
+```
+- Test-retest reliability
+```{r}
+cor.test(avg_drinks1_trt,avg_drinks2_trt)
+```
+
+```{r,echo=FALSE}
+# prep for concurrent validity
+data_ppts$mean_drinks_fp<-c()
+for(i in unique(data_long$pID)){
+  data_ppts$mean_drinks_fp[data_ppts$pID==i]<-mean(data_long$nr_drinks_fp[which(data_long$pID==i & data_long$nr_drinks_fp>0)],na.rm=T)
+}
+```
+
+- Concurrent validity
+```{r}
+cor.test(log(data_ppts$mean_drinks_fp),log(data_ppts$typ_nr_drinks_bl))
+```
+
+- Skewness: `r skewness(data_long$nr_drinks_fp[data_long$nr_drinks_fp>0],na.rm=T)`
+
+**Binge drinking attitudes**
+
+- M = `r mean(data_ppts$alc_att_bl)`
+- SD= `r sd(data_ppts$alc_att_bl)`
+
+**Typical drinking behavior**
+
+- Skewness: `r skewness(data_ppts$typ_nr_drinks_bl)`
+
+
+## Daily Mobile Electronic Diary Analysis
+
+**Conversational Influence Model**
+
+Null-model
+```{r}
+summary(lmer(nr_drinks_fp_log_c~1+(1|pID)+(1|date_fp),data=data_long))
+```
+
+**Hangover Model**
+
+Null-model
+```{r}
+summary(lmer(valence_fp_c~1+(1|pID)+(1|date_fp),data=data_long))
+```
+******
+# Results
+
+## Conversations and Drinking Behavior
+
+**Occurrence of conversations (in % of days on which reports about conversations were available)**
+```{r, echo=FALSE}
+# prep data
+perc_conv<-c()
+for(i in unique(data_long$pID)){
+  perc_conv[length(perc_conv)+1]<-sum(data_long$conv_fp[data_long$pID==i]==1,na.rm=T)/sum(!is.na(data_long$conv_fp[data_long$pID==i]))
+}
+```
+Mean = `r mean(perc_conv)`
+SD = `r sd(perc_conv)`
+Range = `r range(perc_conv)`
+
+**Average conversational valence** 
+
+`r mean(data_long$valence_fp,na.rm=T)`, SD = `r sd(data_long$valence_fp,na.rm=T)`
+
+**Number of typical drinking occasions**
+
+Median: `r median(data_ppts$typ_drinking_occasions)`
+Mean: `r mean(data_ppts$typ_drinking_occasions)`
+SD = `r sd(data_ppts$typ_drinking_occasions)`
+
+"During the last 12 months, how often did you usually have any kind of drink containing alcohol? By a drink we mean half an ounce of absolute alcohol (e.g. a 12 ounce can of beer, a 5 ounce glass of wine, or a drink containing 1 shot of liquor). Choose only one." 
+
+* Every day (10)
+* 5 to 6 times a week (9)
+* 3 to 4 times a week (8)
+*	twice a week (7)
+*	once a week (6)
+*	2 to 3 times a month (5)
+*	once a month (4)
+*	3 to 11 times in the past year (3)
+*	1 or 2 times in the past year (2)
+*	I did not drink any alcohol in the past year (1)
+
+**Number of drinks per typical drinking occasion:**
+
+Median: `r median(data_ppts$typ_nr_drinks_bl)`
+
+"During the last 12 months, how many alcoholic drinks did you have on a typical day when you drank alcohol?"
+
+*	25 or more drinks (10)
+*	19 to 24 drinks (9)
+*	16 to 18 drinks (8)
+*	12 to 15 drinks (7)
+*	9 to 11 drinks (6)
+*	7 to 8 drinks (5)
+*	5 to 6 drinks (4)
+*	3 to 4 drinks (3)
+*	2 drinks (2)
+*	1 drink (1)
+*	I didn't drink alcohol in the past year (0)
+
+**Number of binge drinking occasions per month** 
+
+Median: `r median(data_ppts$binges_bl)`
+
+"During the last 12 months, how often did you have 5 or more (if you are male) or 4 or more (if you are female) drinks containing any kind of alcohol in within a two-hour period? (That would be the equivalent of at least 5 (4) twelve-ounce cans or bottles of beer, 5 (4) five-ounce glasses of wine, 5 (4) drinks with one shot of liquor or spirits.)"
+
+*	Every day (9)
+*	5 to 6 days a week (8)
+*	3 to 4 days a week (7)
+*	two days a week (6)
+*	one day a week (5)
+*	2 to 3 days a month (4)
+*	one day a month (3)
+*	3 to 11 days in the past year (2)
+*	1 or 2 days in the past year (1)
+*	0 days in the past year (0)
+
+
+**Percentage of days during the field period on which drinking occured:**
+```{r,echo=FALSE}
+#Prep data
+perc_drank<-c()
+for(i in unique(data_long$pID)){
+  perc_drank[length(perc_drank)+1]<-sum(data_long$nr_drinks_fp[data_long$pID==i]>0,na.rm=T)/sum(!is.na(data_long$nr_drinks_fp[data_long$pID==i]))
+}
+```
+
+Mean: `r mean(perc_drank)`
+SD: `r sd(perc_drank)`
+Range: `r range(perc_drank)`
+
+**Number of drinks per drinking occasion during the field period:**
+
+Median: `r median(data_long$nr_drinks_fp[data_long$nr_drinks_fp>0],na.rm=T)`
+Mean: `r mean(data_long$nr_drinks_fp[data_long$nr_drinks_fp>0],na.rm=T)`
+SD: `r sd(data_long$nr_drinks_fp[data_long$nr_drinks_fp>0],na.rm=T)`
+Range: `r range(data_long$nr_drinks_fp[data_long$nr_drinks_fp>0],na.rm=T)`
+
+**Presence of drinking peers in percentage of days for which reports are available:**par
+```{r, echo=FALSE}
+# Prep data
+perc_peers<-c()
+for(i in unique(data_long$pID)){
+  perc_peers[length(perc_peers)+1]<-sum(data_long$peer_pres_fp[data_long$pID==i]==1,na.rm=T)/sum(!is.na(data_long$peer_pres_fp[data_long$pID==i]))
+}
+```
+Mean: `r mean(perc_peers)`
+SD: `r sd(perc_peers)`
+
+## Conversational Influence and Hangover Effects
+
+**Conversational Influence Model - Table 1**
+
+```{r}
+mod1<-lmer(nr_drinks_fp_log_c~yvalence_fp_c+alc_att_bl_c+peer_pres_fp_c+typ_nr_drinks_bl_log_c+mean_valence_fp_c+gender_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod1)
+confint(mod1,oldNames=F)
+```
+
+**Hangover Model - Table 1**
+```{r}
+mod2<-lmer(valence_fp_c~ynr_drinks_fp_log_c+alc_att_bl_c+peer_pres_fp_c+typ_nr_drinks_bl_log_c+gender_c+mean_valence_fp_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod2)
+confint(mod2,oldNames=F)
+```
+
+## Regulation of Neural Valuation Responses to Media Messages Moderates Peer Influence
+
+**Moderation by message-consistent regulation success - Table 1**
+
+```{r}
+mod3<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_cons_c+peer_pres_fp_c+gender_c+typ_nr_drinks_bl_log_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod3)
+confint(mod3,oldNames=F)
+```
+
+**Moderation by message-derogating regulation success - Table 1**
+```{r}
+mod4<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_derog_c+peer_pres_fp_c+gender_c+typ_nr_drinks_bl_log_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod4)
+confint(mod4,oldNames=F)
+```
+
+**VMPFC - Moderation by message-consistent regulation success - Table 2**
+```{r}
+mod3a<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_VMPFC_cons_c+peer_pres_fp_c+gender_c+typ_nr_drinks_bl_log_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod3a)
+confint(mod3a,oldNames=F)
+```
+
+**VMPFC - Moderation by message-derogating regulation success - Table 2**
+```{r}
+mod3b<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_VMPFC_derog_c+peer_pres_fp_c+gender_c+typ_nr_drinks_bl_log_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod3b)
+confint(mod3b,oldNames=F)
+```
+
+**VS - Moderation by message-consistent regulation success - Table 2**
+```{r}
+mod4a<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_VS_cons_c+peer_pres_fp_c+gender_c+typ_nr_drinks_bl_log_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod4a)
+confint(mod4a,oldNames=F)
+```
+**VS - Moderation by message-derogating regulation success - Table 2**
+```{r}
+mod4b<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_VS_derog_c+peer_pres_fp_c+gender_c+typ_nr_drinks_bl_log_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod4b)
+confint(mod4b,oldNames=F)
+```
+
+**Models including the cognitive regulation ROI**
+```{r}
+mod5<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*omnibus_condeff_cons_c+peer_pres_fp_c+gender_c+typ_nr_drinks_bl_log_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod5)
+confint(mod5,oldNames=F)
+
+mod6<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*omnibus_condeff_derog_c+peer_pres_fp_c+gender_c+typ_nr_drinks_bl_log_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod6)
+confint(mod6,oldNames=F)
+```
+
+
+# Supplementary Materials
+"Note that for all models describd here, main results of interest remain unchanged in direction and magnitude when excluding all covariates from the models."
+
+*Table S1*
+```{r}
+mod1_nocov<-lmer(nr_drinks_fp_log_c~yvalence_fp_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod1_nocov)
+confint(mod1_nocov,oldNames=F)
+
+mod2_nocov<-lmer(valence_fp_c~ynr_drinks_fp_log_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod2_nocov)
+confint(mod2_nocov,oldNames=F)
+
+mod3_nocov<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_cons_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod3_nocov)
+confint(mod3_nocov,oldNames=F)
+
+mod4_nocov<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_derog_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod4_nocov)
+confint(mod4_nocov,oldNames=F)
+```
+
+*Table S2*
+```{r}
+mod3a_nocov<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_VMPFC_cons_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod3a_nocov)
+confint(mod3a_nocov,oldNames=F)
+
+mod3b_nocov<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_VS_cons_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod3b_nocov)
+confint(mod3b_nocov,oldNames=F)
+
+mod4a_nocov<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_VMPFC_derog_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod4a_nocov)
+confint(mod4a_nocov,oldNames=F)
+
+mod4b_nocov<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*bartra_VS_derog_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod4b_nocov)
+confint(mod4b_nocov,oldNames=F)
+```
+
+*Table S3*
+```{r}
+mod5_nocov<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*omnibus_condeff_cons_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod5_nocov)
+confint(mod5_nocov,oldNames=F)
+
+mod6_nocov<-lmer(nr_drinks_fp_log_c~yvalence_fp_c*omnibus_condeff_derog_c+(1|pID)+(1|date_fp),data=data_long)
+summary(mod6_nocov)
+confint(mod6_nocov,oldNames=F)
+```
+
